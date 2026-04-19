@@ -250,7 +250,7 @@ table.sku td{padding:7px 10px;color:var(--tx)}
               <th style="width:105px">N° Factura</th><th style="width:145px">Proveedor</th>
               <th style="width:100px">Monto</th><th style="width:78px">OC Ref.</th>
               <th style="width:75px">Fecha</th><th style="width:100px">Estado</th>
-              <th style="width:60px">Conf.</th><th>Acciones</th>
+              <th style="width:60px">Conf.</th><th style="width:90px">Detalle</th><th>Acciones</th>
             </tr></thead>
             <tbody id="ftbody"><tr><td colspan="8" class="emp">Cargando...</td></tr></tbody>
           </table>
@@ -409,9 +409,35 @@ table.sku td{padding:7px 10px;color:var(--tx)}
         <div class="slabel">Órdenes de compra</div>
         <div class="tw">
           <table class="t">
-            <thead><tr><th style="width:100px">N° OC</th><th>Proveedor</th><th style="width:100px">Monto</th><th style="width:80px">Estado</th><th style="width:90px">Fecha</th></tr></thead>
-            <tbody id="octbody"><tr><td colspan="5" class="emp">Cargando...</td></tr></tbody>
+            <thead><tr>
+              <th style="width:100px">N° OC</th><th>Proveedor</th>
+              <th style="width:100px">Monto</th><th style="width:80px">Estado</th>
+              <th style="width:90px">Fecha</th><th style="width:90px">Acciones</th>
+            </tr></thead>
+            <tbody id="octbody"><tr><td colspan="6" class="emp">Cargando...</td></tr></tbody>
           </table>
+        </div>
+        <div id="oc-det-panel" style="display:none;margin-top:14px">
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:18px;animation:si .15s ease">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div>
+                <div style="font-size:13px;font-weight:500;color:var(--tx)" id="oc-det-title">—</div>
+                <div style="font-size:11px;color:var(--tx3);font-family:var(--mono)" id="oc-det-sub">—</div>
+              </div>
+              <button class="bclose" onclick="document.getElementById('oc-det-panel').style.display='none'">✕ Cerrar</button>
+            </div>
+            <div class="tw">
+              <table class="sku">
+                <thead><tr>
+                  <th style="width:90px">SKU</th><th>Descripción</th>
+                  <th style="width:80px">Cantidad</th>
+                  <th style="width:100px">Precio unit.</th>
+                  <th style="width:100px">Total línea</th>
+                </tr></thead>
+                <tbody id="oc-det-body"><tr><td colspan="5" class="emp">—</td></tr></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -430,9 +456,33 @@ table.sku td{padding:7px 10px;color:var(--tx)}
         <div class="slabel">Recepciones</div>
         <div class="tw">
           <table class="t">
-            <thead><tr><th style="width:110px">N° Recepción</th><th style="width:100px">OC Ref.</th><th>Proveedor</th><th style="width:90px">Fecha</th><th style="width:80px">Estado</th></tr></thead>
-            <tbody id="rectbody"><tr><td colspan="5" class="emp">Cargando...</td></tr></tbody>
+            <thead><tr>
+              <th style="width:110px">N° Recepción</th><th style="width:100px">OC Ref.</th>
+              <th>Proveedor</th><th style="width:90px">Fecha</th>
+              <th style="width:80px">Estado</th><th style="width:90px">Acciones</th>
+            </tr></thead>
+            <tbody id="rectbody"><tr><td colspan="6" class="emp">Cargando...</td></tr></tbody>
           </table>
+        </div>
+        <div id="rec-det-panel" style="display:none;margin-top:14px">
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:18px;animation:si .15s ease">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div>
+                <div style="font-size:13px;font-weight:500;color:var(--tx)" id="rec-det-title">—</div>
+                <div style="font-size:11px;color:var(--tx3);font-family:var(--mono)" id="rec-det-sub">—</div>
+              </div>
+              <button class="bclose" onclick="document.getElementById('rec-det-panel').style.display='none'">✕ Cerrar</button>
+            </div>
+            <div class="tw">
+              <table class="sku">
+                <thead><tr>
+                  <th style="width:90px">SKU</th><th>Descripción</th>
+                  <th style="width:100px">Cant. recibida</th>
+                </tr></thead>
+                <tbody id="rec-det-body"><tr><td colspan="3" class="emp">—</td></tr></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -661,11 +711,73 @@ function renderFT(){
   b.innerHTML=filtF.map(f=>{
     const c=Number(f.confianza||0),raw=String(f.id).startsWith('r');
     const confcell=raw?'—':`<div class="cbar"><div class="ctr"><div class="cfl" style="width:${Math.round(c*100)}%;background:${cc(c)}"></div></div><span style="font-size:11px;color:${cc(c)};font-family:var(--mono);min-width:26px">${Math.round(c*100)}%</span></div>`;
-    const idStr = typeof f.id === 'string' ? `'${f.id}'` : f.id;
+    const idStr=typeof f.id==='string'?`'${f.id}'`:f.id;
     const pdfbtn=f.storage_path?`<a class="btn-accion bav" href="${SB}/storage/v1/object/public/facturas-pdf/${f.storage_path}" target="_blank">↗ PDF</a>`:'';
     const anlbtn=raw?'':` <button class="btn-accion bag" onclick="showDet(${idStr},event)">Ver análisis</button>`;
-    return`<tr class="${selF===f.id?'sel':''}"><td style="color:var(--blue2);font-family:var(--mono)">${f.numero_factura}</td><td>${f.nombre_proveedor}</td><td style="font-family:var(--mono)">${f.monto_total!=null?fmt(f.monto_total):'—'}</td><td style="color:var(--tx3);font-family:var(--mono)">${f.oc_referencia}</td><td style="color:var(--tx3)">${fmtD(f.fecha_emision)}</td><td>${badgeH(f.estado)}</td><td>${confcell}</td><td>${pdfbtn}${anlbtn}</td></tr>`;
+    const detbtn=raw?'—':`<button class="btn-accion" style="color:var(--tx2);border-color:var(--border2)" onclick="showFDetalle(${idStr},event)">Ver detalle</button>`;
+    return`<tr class="${selF===f.id?'sel':''}"><td style="color:var(--blue2);font-family:var(--mono)">${f.numero_factura}</td><td>${f.nombre_proveedor}</td><td style="font-family:var(--mono)">${f.monto_total!=null?fmt(f.monto_total):'—'}</td><td style="color:var(--tx3);font-family:var(--mono)">${f.oc_referencia}</td><td style="color:var(--tx3)">${fmtD(f.fecha_emision)}</td><td>${badgeH(f.estado)}</td><td>${confcell}</td><td>${detbtn}</td><td>${pdfbtn}${anlbtn}</td></tr>`;
   }).join('');
+}
+
+async function showFDetalle(id,e){
+  if(e)e.stopPropagation();
+  const f=allF.find(x=>x.id===id);if(!f)return;
+  const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVybXR0bmhkZ3Buc2V3Zm9jam9iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjM1Njc5OCwiZXhwIjoyMDkxOTMyNzk4fQ.Mv7B2-GqD8-ne6wxE6OMXCSLbL8-Xhj8uXFYAx59rHA';
+  // Reuse det panel but show only SKU table
+  selF=id;renderFT();
+  document.getElementById('dtitle').textContent='Detalle SKU · Factura '+f.numero_factura;
+  document.getElementById('dprov').textContent=f.nombre_proveedor+' · '+f.oc_referencia;
+  document.getElementById('dbadge').innerHTML=badgeH(f.estado);
+  document.getElementById('dpdf').style.display='none';
+  // Reset analysis sections
+  document.getElementById('af-num').textContent='—';document.getElementById('af-monto').textContent='—';
+  document.getElementById('af-rut').textContent='—';document.getElementById('af-fecha').textContent='—';
+  document.getElementById('af-conf').textContent='—';
+  document.getElementById('aoc-num').textContent='—';document.getElementById('aoc-monto').textContent='—';
+  document.getElementById('aoc-rut').textContent='—';document.getElementById('aoc-diff').textContent='—';document.getElementById('aoc-rut-ok').textContent='—';
+  document.getElementById('arec-fecha').textContent='—';document.getElementById('arec-estado').textContent='—';
+  document.getElementById('arec-oc').textContent='—';document.getElementById('arec-responsable').textContent='—';document.getElementById('arec-ok').textContent='—';
+  document.getElementById('dmotw').style.display='none';
+  document.getElementById('dapcsaved').style.display='none';
+  document.getElementById('dapcbox').style.display='none';
+  document.getElementById('btnapr').style.display='none';
+  document.getElementById('btnapc').style.display='none';
+  document.getElementById('btnrej').style.display='none';
+  document.getElementById('btnconfapc').style.display='none';
+  document.getElementById('dtoas').style.display='none';
+
+  // Load SKU lineas
+  const lineas=Array.isArray(f.lineas)?f.lineas:(typeof f.lineas==='string'&&f.lineas?JSON.parse(f.lineas):[]);
+  const sb=document.getElementById('skubody');
+  if(lineas.length){
+    // Fetch OC detalle for prices
+    let detalleOC=[];
+    try{
+      const r=await fetch(`${SB}/rest/v1/ordenes_compra_detalle?numero_oc=eq.${encodeURIComponent(f.oc_referencia)}&select=sku,cantidad,precio_unitario&order=sku`,{headers:{'apikey':SK,'Authorization':'Bearer '+SK}});
+      if(r.ok){const d=await r.json();const seen=new Set();detalleOC=d.filter(x=>{if(seen.has(x.sku))return false;seen.add(x.sku);return true;});}
+    }catch(e){}
+    sb.innerHTML=lineas.map(l=>{
+      const oc=detalleOC.find(d=>d.sku===l.sku);
+      const ok=l.match_resultado==='ok';
+      const rc=ok?'sok':l.diferencia_pct>5?'ser':'swa';
+      const rt=ok?'✓ OK':l.match_resultado.replace(/_/g,' ');
+      return`<tr>
+        <td style="color:var(--blue2)">${l.sku}</td>
+        <td>${l.descripcion}</td>
+        <td>${l.cantidad_factura??'—'}</td>
+        <td class="${l.cantidad_factura!==oc?.cantidad?'swa':''}">${oc?.cantidad??'—'}</td>
+        <td>—</td>
+        <td class="${l.precio_unitario_factura!==oc?.precio_unitario?'swa':''}">${fmt(l.precio_unitario_factura)}</td>
+        <td>${fmt(oc?.precio_unitario)}</td>
+        <td class="${rc}">${l.diferencia_pct!=null?l.diferencia_pct.toFixed(2)+'%':'—'}</td>
+        <td class="${rc}">${rt}</td>
+      </tr>`;
+    }).join('');
+  }else{
+    sb.innerHTML='<tr><td colspan="9" class="emp">Sin detalle SKU disponible</td></tr>';
+  }
+  document.getElementById('det-panel').style.display='block';
+  document.getElementById('det-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 async function showDet(id,e){
@@ -871,7 +983,31 @@ async function loadOC(){
   filtOC=[...allOC];renderOC();
 }
 function applyOC(){const est=document.getElementById('fil-oc-est').value,prov=document.getElementById('fil-oc-prov').value.toLowerCase();filtOC=allOC.filter(o=>{if(est&&o.estado!==est)return false;if(prov&&!(o.nombre_proveedor||'').toLowerCase().includes(prov))return false;return true;});renderOC();}
-function renderOC(){const b=document.getElementById('octbody');if(!filtOC.length){b.innerHTML='<tr><td colspan="5" class="emp">Sin resultados</td></tr>';return;}b.innerHTML=filtOC.map(o=>{const bc=o.estado==='cerrada'?'bok':o.estado==='cancelada'?'brej':'bpend';return`<tr><td style="color:var(--blue2);font-family:var(--mono)">${o.numero_oc}</td><td>${o.nombre_proveedor||o.proveedor||'—'}</td><td style="font-family:var(--mono)">${fmt(o.monto_total)}</td><td><span class="badge ${bc}">${o.estado}</span></td><td style="color:var(--tx3)">${fmtD(o.fecha_emision||o.created_at)}</td></tr>`;}).join('');}
+function renderOC(){const b=document.getElementById('octbody');if(!filtOC.length){b.innerHTML='<tr><td colspan="6" class="emp">Sin resultados</td></tr>';return;}b.innerHTML=filtOC.map(o=>{const bc=o.estado==='cerrada'?'bok':o.estado==='cancelada'?'brej':'bpend';return`<tr><td style="color:var(--blue2);font-family:var(--mono)">${o.numero_oc}</td><td>${o.nombre_proveedor||o.proveedor||'—'}</td><td style="font-family:var(--mono)">${fmt(o.monto_total)}</td><td><span class="badge ${bc}">${o.estado}</span></td><td style="color:var(--tx3)">${fmtD(o.fecha_emision||o.created_at)}</td><td><button class="btn-accion bag" onclick="showOCDetalle('${o.numero_oc}')">Ver detalle</button></td></tr>`;}).join('');}
+
+async function showOCDetalle(oc){
+  const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVybXR0bmhkZ3Buc2V3Zm9jam9iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjM1Njc5OCwiZXhwIjoyMDkxOTMyNzk4fQ.Mv7B2-GqD8-ne6wxE6OMXCSLbL8-Xhj8uXFYAx59rHA';
+  document.getElementById('oc-det-title').textContent='Detalle · '+oc;
+  document.getElementById('oc-det-sub').textContent='Productos de la orden de compra';
+  document.getElementById('oc-det-body').innerHTML='<tr><td colspan="5" class="emp">Cargando...</td></tr>';
+  document.getElementById('oc-det-panel').style.display='block';
+  document.getElementById('oc-det-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+  try{
+    const r=await fetch(`${SB}/rest/v1/ordenes_compra_detalle?numero_oc=eq.${encodeURIComponent(oc)}&select=sku,descripcion,cantidad,precio_unitario,total_linea&order=sku`,{headers:{'apikey':SK,'Authorization':'Bearer '+SK}});
+    if(!r.ok)throw 0;
+    const d=await r.json();
+    const seen=new Set();
+    const dedup=d.filter(x=>{if(seen.has(x.sku))return false;seen.add(x.sku);return true;});
+    if(!dedup.length){document.getElementById('oc-det-body').innerHTML='<tr><td colspan="5" class="emp">Sin productos</td></tr>';return;}
+    document.getElementById('oc-det-body').innerHTML=dedup.map(s=>`<tr>
+      <td style="color:var(--blue2)">${s.sku}</td>
+      <td>${s.descripcion}</td>
+      <td style="text-align:center">${s.cantidad}</td>
+      <td style="font-family:var(--mono)">${fmt(s.precio_unitario)}</td>
+      <td style="font-family:var(--mono)">${fmt(s.total_linea)}</td>
+    </tr>`).join('');
+  }catch(e){document.getElementById('oc-det-body').innerHTML='<tr><td colspan="5" class="emp">Error cargando detalle</td></tr>';}
+}
 
 // ── REC ──
 let allRec=[],filtRec=[];
@@ -880,7 +1016,27 @@ async function loadRec(){
   filtRec=[...allRec];renderRec();
 }
 function applyRec(){const est=document.getElementById('fil-rec-est').value,oc=document.getElementById('fil-rec-oc').value.toLowerCase();filtRec=allRec.filter(r=>{if(est&&r.estado!==est)return false;if(oc&&!(r.oc_referencia||'').toLowerCase().includes(oc))return false;return true;});renderRec();}
-function renderRec(){const b=document.getElementById('rectbody');if(!filtRec.length){b.innerHTML='<tr><td colspan="5" class="emp">Sin resultados</td></tr>';return;}b.innerHTML=filtRec.map(r=>{const bc=r.estado==='conforme'?'bok':r.estado==='rechazo'?'brej':'bpend';return`<tr><td style="color:var(--blue2);font-family:var(--mono)">${r.numero_recepcion}</td><td style="color:var(--tx3);font-family:var(--mono)">${r.oc_referencia||'—'}</td><td>${r.nombre_proveedor||'—'}</td><td style="color:var(--tx3)">${fmtD(r.fecha_recepcion)}</td><td><span class="badge ${bc}">${r.estado}</span></td></tr>`;}).join('');}
+function renderRec(){const b=document.getElementById('rectbody');if(!filtRec.length){b.innerHTML='<tr><td colspan="6" class="emp">Sin resultados</td></tr>';return;}b.innerHTML=filtRec.map(r=>{const bc=r.estado==='conforme'?'bok':r.estado==='rechazo'?'brej':'bpend';return`<tr><td style="color:var(--blue2);font-family:var(--mono)">${r.numero_recepcion}</td><td style="color:var(--tx3);font-family:var(--mono)">${r.oc_referencia||'—'}</td><td>${r.nombre_proveedor||'—'}</td><td style="color:var(--tx3)">${fmtD(r.fecha_recepcion)}</td><td><span class="badge ${bc}">${r.estado}</span></td><td><button class="btn-accion bag" onclick="showRecDetalle('${r.oc_referencia}','${r.numero_recepcion}')">Ver detalle</button></td></tr>`;}).join('');}
+
+async function showRecDetalle(oc, numRec){
+  const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVybXR0bmhkZ3Buc2V3Zm9jam9iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjM1Njc5OCwiZXhwIjoyMDkxOTMyNzk4fQ.Mv7B2-GqD8-ne6wxE6OMXCSLbL8-Xhj8uXFYAx59rHA';
+  document.getElementById('rec-det-title').textContent='Detalle · '+numRec;
+  document.getElementById('rec-det-sub').textContent='Productos recibidos para '+oc;
+  document.getElementById('rec-det-body').innerHTML='<tr><td colspan="3" class="emp">Cargando...</td></tr>';
+  document.getElementById('rec-det-panel').style.display='block';
+  document.getElementById('rec-det-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+  try{
+    const r=await fetch(`${SB}/rest/v1/recepciones_detalle?oc_referencia=eq.${encodeURIComponent(oc)}&select=sku,descripcion,cantidad_recibida&order=sku`,{headers:{'apikey':SK,'Authorization':'Bearer '+SK}});
+    if(!r.ok)throw 0;
+    const d=await r.json();
+    if(!d.length){document.getElementById('rec-det-body').innerHTML='<tr><td colspan="3" class="emp">Sin productos registrados</td></tr>';return;}
+    document.getElementById('rec-det-body').innerHTML=d.map(s=>`<tr>
+      <td style="color:var(--blue2)">${s.sku}</td>
+      <td>${s.descripcion||'—'}</td>
+      <td style="text-align:center">${s.cantidad_recibida}</td>
+    </tr>`).join('');
+  }catch(e){document.getElementById('rec-det-body').innerHTML='<tr><td colspan="3" class="emp">Error cargando detalle</td></tr>';}
+}
 
 // ── CONFIG ──
 async function loadConfig(){
