@@ -677,12 +677,14 @@ var MF=[
 let allF=[],filtF=[],selF=null;
 
 async function loadF(){
+  const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVybXR0bmhkZ3Buc2V3Zm9jam9iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjM1Njc5OCwiZXhwIjoyMDkxOTMyNzk4fQ.Mv7B2-GqD8-ne6wxE6OMXCSLbL8-Xhj8uXFYAx59rHA';
+  const skH={'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json'};
   try{
-    const r=await fetch(`${SB}/rest/v1/facturas?select=*&order=created_at.desc`,{headers:ah()});
+    const r=await fetch(`${SB}/rest/v1/facturas?select=*&order=created_at.desc`,{headers:skH});
     if(!r.ok)throw 0;allF=await r.json();
   }catch(e){allF=[...MF];}
   try{
-    const r2=await fetch(`${SB}/rest/v1/facturas_raw?select=id,nombre_archivo,remitente,estado,created_at&estado=in.(pendiente,procesando)&order=created_at.desc`,{headers:ah()});
+    const r2=await fetch(`${SB}/rest/v1/facturas_raw?select=id,nombre_archivo,remitente,estado,created_at&estado=in.(pendiente,procesando)&order=created_at.desc`,{headers:skH});
     if(r2.ok){const raw=await r2.json();allF=[...allF,...raw.map(x=>({id:'r'+x.id,numero_factura:x.nombre_archivo||'—',nombre_proveedor:x.remitente||'—',rut_proveedor:'—',monto_total:null,oc_referencia:'—',fecha_emision:x.created_at,estado:x.estado,confianza:null,motivo:'',storage_path:null,lineas:[],created_at:x.created_at}))];}
   }catch(e){}
   filtF=[...allF];renderKPIs();renderFT();
@@ -783,8 +785,29 @@ async function showFDetalle(id,e){
 
 async function showDet(id,e){
   if(e)e.stopPropagation();
-  const f=allF.find(x=>x.id===id);if(!f)return;
   selF=id;renderFT();
+
+  const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVybXR0bmhkZ3Buc2V3Zm9jam9iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjM1Njc5OCwiZXhwIjoyMDkxOTMyNzk4fQ.Mv7B2-GqD8-ne6wxE6OMXCSLbL8-Xhj8uXFYAx59rHA';
+  const skH={'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json'};
+
+  // Mostrar panel con loading
+  document.getElementById('det-panel').style.display='block';
+  document.getElementById('det-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+  document.getElementById('dtitle').textContent='Cargando...';
+  document.getElementById('dprov').textContent='—';
+  document.getElementById('skubody').innerHTML='<tr><td colspan="9" class="emp">Cargando...</td></tr>';
+  ['af-num','af-monto','af-rut','af-fecha','af-conf',
+   'aoc-num','aoc-monto','aoc-rut','aoc-diff','aoc-rut-ok',
+   'arec-fecha','arec-estado','arec-oc','arec-responsable','arec-ok'
+  ].forEach(id=>{const el=document.getElementById(id);if(el){el.textContent='—';el.className='hval';}});
+
+  // Refetch factura fresca desde Supabase — no usar allF que puede tener datos stale o mock
+  let f=allF.find(x=>x.id===id);
+  try{
+    const r=await fetch(`${SB}/rest/v1/facturas?id=eq.${id}&select=*`,{headers:skH});
+    if(r.ok){const d=await r.json();if(d.length)f=d[0];}
+  }catch(e){console.error('Factura refetch error:',e);}
+  if(!f)return;
 
   document.getElementById('dtitle').textContent='Análisis · Factura '+f.numero_factura;
   document.getElementById('dprov').textContent=f.nombre_proveedor+' · '+f.rut_proveedor;
@@ -792,24 +815,6 @@ async function showDet(id,e){
   const pdfl=document.getElementById('dpdf');
   if(f.storage_path){pdfl.href=`${SB}/storage/v1/object/public/facturas-pdf/${f.storage_path}`;pdfl.style.display='inline-block';}
   else{pdfl.style.display='none';}
-
-  // Reset panel — limpiar todos los campos antes de cargar
-  document.getElementById('det-panel').style.display='block';
-  document.getElementById('skubody').innerHTML='<tr><td colspan="9" class="emp">Cargando...</td></tr>';
-  document.getElementById('det-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
-
-  // Reset cabecera OC
-  ['aoc-num','aoc-monto','aoc-rut','aoc-diff','aoc-rut-ok'].forEach(id=>{
-    const el=document.getElementById(id);if(el){el.textContent='Cargando...';el.className='hval';}
-  });
-  // Reset cabecera Recepción
-  ['arec-fecha','arec-estado','arec-oc','arec-responsable','arec-ok'].forEach(id=>{
-    const el=document.getElementById(id);if(el){el.textContent='Cargando...';el.className='hval';}
-  });
-
-  // Usar service role key para todos los fetches — bypasea RLS sin depender del token de sesión
-  const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVybXR0bmhkZ3Buc2V3Zm9jam9iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjM1Njc5OCwiZXhwIjoyMDkxOTMyNzk4fQ.Mv7B2-GqD8-ne6wxE6OMXCSLbL8-Xhj8uXFYAx59rHA';
-  const skH={'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json'};
 
   // Factura header
   document.getElementById('af-num').textContent=f.numero_factura||'—';
@@ -820,7 +825,7 @@ async function showDet(id,e){
   ce.textContent=f.confianza!=null?Math.round(Number(f.confianza)*100)+'%':'—';
   ce.className='hval'+(Number(f.confianza)>=0.9?' ok':Number(f.confianza)>=0.75?' wa':' er');
 
-  // Fetch OC — usando service role key
+  // Fetch OC
   let oc=null;
   try{
     const r=await fetch(`${SB}/rest/v1/ordenes_compra?numero_oc=eq.${encodeURIComponent(f.oc_referencia)}&select=*`,{headers:skH});
@@ -840,7 +845,7 @@ async function showDet(id,e){
   re.textContent=rm===null?'—':rm?'✓ Sí':'✗ No';
   re.className='hval'+(rm===null?'':rm?' ok':' er');
 
-  // Fetch Recepción — usando service role key
+  // Fetch Recepción
   let rec=null;
   try{
     const r=await fetch(`${SB}/rest/v1/recepciones?oc_referencia=eq.${encodeURIComponent(f.oc_referencia)}&select=*&order=fecha_recepcion.desc&limit=1`,{headers:skH});
@@ -858,7 +863,7 @@ async function showDet(id,e){
   rok.textContent=rec?'✓ Sí':'✗ No';
   rok.className='hval'+(rec?' ok':' er');
 
-  // Fetch SKU detalle OC — usando service role key
+  // Fetch SKU detalle OC
   let detalleOC=[];
   try{
     const r=await fetch(`${SB}/rest/v1/ordenes_compra_detalle?numero_oc=eq.${encodeURIComponent(f.oc_referencia)}&select=sku,descripcion,cantidad,precio_unitario&order=sku`,{headers:skH});
@@ -869,7 +874,7 @@ async function showDet(id,e){
     }
   }catch(e){console.error('OC detalle error:',e);}
 
-  // Fetch detalle recepcion por SKU — usando service role key
+  // Fetch detalle recepcion por SKU
   let detalleRec=[];
   try{
     const r=await fetch(`${SB}/rest/v1/recepciones_detalle?oc_referencia=eq.${encodeURIComponent(f.oc_referencia)}&select=sku,cantidad_recibida`,{headers:skH});
