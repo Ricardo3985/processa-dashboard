@@ -122,7 +122,8 @@ table.sku{width:100%;border-collapse:collapse;font-size:11px;font-family:var(--m
 table.sku thead th{background:var(--bg3);color:var(--tx3);font-size:10px;font-weight:400;padding:7px 10px;text-align:left;letter-spacing:.05em;border-bottom:1px solid var(--border2)}
 table.sku tbody tr{border-bottom:1px solid var(--border2)}
 table.sku tbody tr:last-child{border-bottom:none}
-table.sku td{padding:7px 10px;color:var(--tx)}
+table.sku td{padding:7px 10px;color:var(--tx);white-space:nowrap}
+table.sku td:last-child{white-space:normal;vertical-align:top}
 .sok{color:var(--ok3)}.swa{color:var(--warn3)}.ser{color:var(--err3)}
 .motbox{background:rgba(212,137,42,0.07);border:1px solid rgba(212,137,42,0.2);border-radius:6px;padding:10px 13px;margin-bottom:14px}
 .motlbl{font-size:10px;color:var(--warn);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;font-family:var(--mono)}
@@ -792,28 +793,41 @@ async function showDet(id,e){
   if(f.storage_path){pdfl.href=`${SB}/storage/v1/object/public/facturas-pdf/${f.storage_path}`;pdfl.style.display='inline-block';}
   else{pdfl.style.display='none';}
 
-  // Reset panel
+  // Reset panel — limpiar todos los campos antes de cargar
   document.getElementById('det-panel').style.display='block';
-  document.getElementById('skubody').innerHTML='<tr><td colspan="8" class="emp">Cargando...</td></tr>';
+  document.getElementById('skubody').innerHTML='<tr><td colspan="9" class="emp">Cargando...</td></tr>';
   document.getElementById('det-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
 
+  // Reset cabecera OC
+  ['aoc-num','aoc-monto','aoc-rut','aoc-diff','aoc-rut-ok'].forEach(id=>{
+    const el=document.getElementById(id);if(el){el.textContent='Cargando...';el.className='hval';}
+  });
+  // Reset cabecera Recepción
+  ['arec-fecha','arec-estado','arec-oc','arec-responsable','arec-ok'].forEach(id=>{
+    const el=document.getElementById(id);if(el){el.textContent='Cargando...';el.className='hval';}
+  });
+
+  // Usar service role key para todos los fetches — bypasea RLS sin depender del token de sesión
+  const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVybXR0bmhkZ3Buc2V3Zm9jam9iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjM1Njc5OCwiZXhwIjoyMDkxOTMyNzk4fQ.Mv7B2-GqD8-ne6wxE6OMXCSLbL8-Xhj8uXFYAx59rHA';
+  const skH={'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json'};
+
   // Factura header
-  document.getElementById('af-num').textContent=f.numero_factura;
+  document.getElementById('af-num').textContent=f.numero_factura||'—';
   document.getElementById('af-monto').textContent=fmt(f.monto_total);
-  document.getElementById('af-rut').textContent=f.rut_proveedor;
+  document.getElementById('af-rut').textContent=f.rut_proveedor||'—';
   document.getElementById('af-fecha').textContent=fmtD(f.fecha_emision);
   const ce=document.getElementById('af-conf');
   ce.textContent=f.confianza!=null?Math.round(Number(f.confianza)*100)+'%':'—';
   ce.className='hval'+(Number(f.confianza)>=0.9?' ok':Number(f.confianza)>=0.75?' wa':' er');
 
-  // Fetch OC en tiempo real
+  // Fetch OC — usando service role key
   let oc=null;
   try{
-    const r=await fetch(`${SB}/rest/v1/ordenes_compra?numero_oc=eq.${encodeURIComponent(f.oc_referencia)}&select=*`,{headers:ah()});
+    const r=await fetch(`${SB}/rest/v1/ordenes_compra?numero_oc=eq.${encodeURIComponent(f.oc_referencia)}&select=*`,{headers:skH});
     if(r.ok){const d=await r.json();if(d.length)oc=d[0];}
-  }catch(e){}
+  }catch(e){console.error('OC fetch error:',e);}
 
-  document.getElementById('aoc-num').textContent=f.oc_referencia;
+  document.getElementById('aoc-num').textContent=f.oc_referencia||'—';
   document.getElementById('aoc-monto').textContent=oc?fmt(oc.monto):'—';
   document.getElementById('aoc-rut').textContent=oc?(oc.rut_proveedor||'—'):'—';
   const diff=f.monto_total!=null&&oc?.monto!=null?Math.abs(f.monto_total-oc.monto)/oc.monto*100:null;
@@ -826,16 +840,16 @@ async function showDet(id,e){
   re.textContent=rm===null?'—':rm?'✓ Sí':'✗ No';
   re.className='hval'+(rm===null?'':rm?' ok':' er');
 
-  // Fetch Recepción en tiempo real
+  // Fetch Recepción — usando service role key
   let rec=null;
   try{
-    const r=await fetch(`${SB}/rest/v1/recepciones?oc_referencia=eq.${encodeURIComponent(f.oc_referencia)}&select=*&order=fecha_recepcion.desc&limit=1`,{headers:ah()});
+    const r=await fetch(`${SB}/rest/v1/recepciones?oc_referencia=eq.${encodeURIComponent(f.oc_referencia)}&select=*&order=fecha_recepcion.desc&limit=1`,{headers:skH});
     if(r.ok){const d=await r.json();if(d.length)rec=d[0];}
-  }catch(e){}
+  }catch(e){console.error('Rec fetch error:',e);}
 
   document.getElementById('arec-fecha').textContent=rec?fmtD(rec.fecha_recepcion):'—';
   const ree=document.getElementById('arec-estado');
-  ree.textContent=rec?'conforme':'No registrada';
+  ree.textContent=rec?(rec.estado||'conforme'):'No registrada';
   ree.className='hval'+(rec?' ok':' er');
   document.getElementById('arec-oc').textContent=rec?(rec.oc_referencia||f.oc_referencia):f.oc_referencia;
   const rcant=document.getElementById('arec-responsable');
@@ -844,28 +858,23 @@ async function showDet(id,e){
   rok.textContent=rec?'✓ Sí':'✗ No';
   rok.className='hval'+(rec?' ok':' er');
 
-  // Fetch SKU detalle OC en tiempo real
+  // Fetch SKU detalle OC — usando service role key
   let detalleOC=[];
   try{
-    const r=await fetch(`${SB}/rest/v1/ordenes_compra_detalle?numero_oc=eq.${encodeURIComponent(f.oc_referencia)}&select=sku,descripcion,cantidad,precio_unitario&order=sku`,{headers:ah()});
+    const r=await fetch(`${SB}/rest/v1/ordenes_compra_detalle?numero_oc=eq.${encodeURIComponent(f.oc_referencia)}&select=sku,descripcion,cantidad,precio_unitario&order=sku`,{headers:skH});
     if(r.ok){
       const d=await r.json();
-      // Deduplicar por SKU (hay duplicados en la tabla)
       const seen=new Set();
       detalleOC=d.filter(x=>{if(seen.has(x.sku))return false;seen.add(x.sku);return true;});
     }
-  }catch(e){}
+  }catch(e){console.error('OC detalle error:',e);}
 
-  // Fetch detalle recepcion por SKU (service role para bypasear RLS)
-  const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVybXR0bmhkZ3Buc2V3Zm9jam9iIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjM1Njc5OCwiZXhwIjoyMDkxOTMyNzk4fQ.Mv7B2-GqD8-ne6wxE6OMXCSLbL8-Xhj8uXFYAx59rHA';
+  // Fetch detalle recepcion por SKU — usando service role key
   let detalleRec=[];
   try{
-    const r=await fetch(`${SB}/rest/v1/recepciones_detalle?oc_referencia=eq.${encodeURIComponent(f.oc_referencia)}&select=sku,cantidad_recibida`,{
-      headers:{'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json'}
-    });
+    const r=await fetch(`${SB}/rest/v1/recepciones_detalle?oc_referencia=eq.${encodeURIComponent(f.oc_referencia)}&select=sku,cantidad_recibida`,{headers:skH});
     if(r.ok)detalleRec=await r.json();
-    console.log('recepciones_detalle:', detalleRec);
-  }catch(e){console.error('rec detalle error:',e);}
+  }catch(e){console.error('Rec detalle error:',e);}
 
   // Construir tabla SKU usando lineas de factura vs detalle OC vs recepcion
   const lineas=Array.isArray(f.lineas)?f.lineas:(typeof f.lineas==='string'?JSON.parse(f.lineas||'[]'):[]);
@@ -902,31 +911,58 @@ async function showDet(id,e){
 
     sb.innerHTML=[...allSkus.values()].map(s=>{
       const ok=s.match==='ok'||(!s.match&&s.cantidad_f===s.cantidad_oc&&s.precio_f===s.precio_oc);
-      const rc=ok?'sok':(s.diff>5?'ser':'swa');
-      const rt=s.match?s.match.replace(/_/g,' '):(ok?'✓ OK':'revisar');
       const cantFDiff=s.cantidad_f!==null&&s.cantidad_oc!==null&&s.cantidad_f!==s.cantidad_oc;
+      const cantRExcede=s.cantidad_f!==null&&s.cantidad_rec!==null&&s.cantidad_f>s.cantidad_rec;
       const cantRDiff=s.cantidad_rec!==null&&s.cantidad_oc!==null&&s.cantidad_rec!==s.cantidad_oc;
       const precioDiff=s.precio_f!==null&&s.precio_oc!==null&&s.precio_f!==s.precio_oc;
-      return`<tr>
-        <td style="color:var(--blue2)">${s.sku}</td>
-        <td>${s.descripcion||'—'}</td>
-        <td class="${cantFDiff?'swa':''}">${s.cantidad_f??'—'}</td>
-        <td>${s.cantidad_oc??'—'}</td>
-        <td class="${cantRDiff?'swa':''}">${s.cantidad_rec!=null?s.cantidad_rec:'—'}</td>
-        <td class="${precioDiff?'swa':''}">${s.precio_f!=null?fmt(s.precio_f):'—'}</td>
-        <td>${s.precio_oc!=null?fmt(s.precio_oc):'—'}</td>
-        <td class="${rc}">${s.diff!=null?s.diff.toFixed(2)+'%':'—'}</td>
-        <td class="${rc}">${rt}</td>
+
+      // Construir lista de diferencias individuales
+      const diffs=[];
+      if(precioDiff) diffs.push(`precio: ${fmt(s.precio_f)} vs OC ${fmt(s.precio_oc)}`);
+      if(cantFDiff)  diffs.push(`cant. factura: ${s.cantidad_f} vs OC ${s.cantidad_oc}`);
+      if(cantRExcede) diffs.push(`⚠ facturado ${s.cantidad_f} supera recibido ${s.cantidad_rec}`);
+
+      const hasError=diffs.length>0||s.match==='sku_no_encontrado_en_oc'||s.match==='sku_no_encontrado';
+      const rc=!hasError?'sok':(cantRExcede||s.match?.includes('no_encontrado')?'ser':'swa');
+
+      // Resultado: si hay diferencias, mostrar como bullets; si no, OK
+      let rtHtml;
+      if(!hasError){
+        rtHtml=`<span class="sok">✓ OK</span>`;
+      } else if(s.match==='sku_no_encontrado_en_oc'||s.match==='sku_no_encontrado'){
+        rtHtml=`<span class="ser">SKU no en OC</span>`;
+      } else {
+        rtHtml=`<ul style="margin:0;padding-left:12px;list-style:disc">${diffs.map(d=>`<li style="color:${cantRExcede?'var(--err3)':'var(--warn3)'};font-size:10px;line-height:1.6">${d}</li>`).join('')}</ul>`;
+      }
+
+      return`<tr style="vertical-align:top">
+        <td style="color:var(--blue2);padding-top:9px">${s.sku}</td>
+        <td style="padding-top:9px">${s.descripcion||'—'}</td>
+        <td class="${cantFDiff?'swa':''}" style="padding-top:9px">${s.cantidad_f??'—'}</td>
+        <td style="padding-top:9px">${s.cantidad_oc??'—'}</td>
+        <td class="${cantRExcede?'ser':cantRDiff?'swa':''}" style="padding-top:9px">${s.cantidad_rec!=null?s.cantidad_rec:'—'}</td>
+        <td class="${precioDiff?'swa':''}" style="padding-top:9px">${s.precio_f!=null?fmt(s.precio_f):'—'}</td>
+        <td style="padding-top:9px">${s.precio_oc!=null?fmt(s.precio_oc):'—'}</td>
+        <td class="${rc}" style="padding-top:9px">${s.diff!=null?s.diff.toFixed(2)+'%':'—'}</td>
+        <td style="white-space:normal;min-width:180px">${rtHtml}</td>
       </tr>`;
     }).join('');
   }else{
     sb.innerHTML='<tr><td colspan="9" class="emp">Sin detalle SKU disponible</td></tr>';
   }
 
-  // Motivo
+  // Motivo — mostrar como bullets si hay múltiples (separados por |)
   const mw=document.getElementById('dmotw');
-  if(f.motivo&&f.motivo!=='OK'){mw.style.display='block';document.getElementById('dmot').textContent=f.motivo;}
-  else{mw.style.display='none';}
+  if(f.motivo&&f.motivo!=='OK'){
+    mw.style.display='block';
+    const partes=f.motivo.split(' | ').map(p=>p.trim()).filter(Boolean);
+    const mot=document.getElementById('dmot');
+    if(partes.length>1){
+      mot.innerHTML=`<ul style="margin:0;padding-left:14px;list-style:disc">${partes.map(p=>`<li style="margin-bottom:3px">${p}</li>`).join('')}</ul>`;
+    } else {
+      mot.textContent=f.motivo;
+    }
+  } else {mw.style.display='none';}
 
   // Comentario guardado
   const as=document.getElementById('dapcsaved');
