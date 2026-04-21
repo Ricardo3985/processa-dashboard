@@ -915,32 +915,35 @@ async function showDet(id,e){
     });
 
     sb.innerHTML=[...allSkus.values()].map(s=>{
-      const cantFDiff=s.cantidad_f!==null&&s.cantidad_oc!==null&&s.cantidad_f!==s.cantidad_oc;
-      const cantRExcede=s.cantidad_f!==null&&s.cantidad_rec!==null&&s.cantidad_f>s.cantidad_rec;
-      const cantRNull=s.cantidad_rec===null&&s.match!==null&&s.match!=='ok';
-      const cantRDiff=s.cantidad_rec!==null&&s.cantidad_oc!==null&&s.cantidad_rec!==s.cantidad_oc;
-      const precioDiff=s.precio_f!==null&&s.precio_oc!==null&&s.precio_f!==s.precio_oc;
+      const cantFDiff   = s.cantidad_f!==null && s.cantidad_oc!==null && s.cantidad_f!==s.cantidad_oc;
+      const cantRExcede = s.cantidad_f!==null && s.cantidad_rec!==null && s.cantidad_f>s.cantidad_rec;
+      const cantRMayor  = s.cantidad_f!==null && s.cantidad_rec!==null && s.cantidad_rec>s.cantidad_f;
+      const cantRNull   = s.cantidad_rec===null && s.match!==null && s.match!=='ok';
+      const cantRDiff   = s.cantidad_rec!==null && s.cantidad_oc!==null && s.cantidad_rec!==s.cantidad_oc;
+      const precioDiff  = s.precio_f!==null && s.precio_oc!==null && s.precio_f!==s.precio_oc;
 
-      // Usar match_resultado como fuente de verdad principal
-      const matchOk = s.match==='ok' || (!s.match && !cantFDiff && !precioDiff && !cantRExcede && s.cantidad_rec!==null);
+      // match_resultado es fuente de verdad — no recalcular desde valores numéricos
+      const matchOk = s.match==='ok' || (!s.match && !cantFDiff && !precioDiff && !cantRExcede && !cantRMayor && s.cantidad_rec!==null);
 
-      // Construir lista de diferencias individuales
+      // Construir lista de diferencias
       const diffs=[];
-      if(precioDiff) diffs.push(`precio: ${fmt(s.precio_f)} vs OC ${fmt(s.precio_oc)}`);
-      if(cantFDiff&&s.cantidad_oc!==null) diffs.push(`cant. factura: ${s.cantidad_f} vs OC ${s.cantidad_oc}`);
-      if(cantRExcede) diffs.push(`⚠ facturado ${s.cantidad_f} supera recibido ${s.cantidad_rec}`);
-      if(cantRNull) diffs.push(`sin recepción registrada`);
+      if(precioDiff)  diffs.push(`precio: ${fmt(s.precio_f)} vs OC ${fmt(s.precio_oc)}`);
+      if(cantFDiff && s.cantidad_oc!==null) diffs.push(`cant. factura: ${s.cantidad_f} vs OC ${s.cantidad_oc}`);
+      if(cantRExcede) diffs.push(`⚠ facturado ${s.cantidad_f} supera lo recibido ${s.cantidad_rec}`);
+      if(cantRMayor)  diffs.push(`⚠ recibido ${s.cantidad_rec} es mayor que facturado ${s.cantidad_f}`);
+      if(cantRNull)   diffs.push(`sin recepción registrada`);
 
-      // Si match no es ok pero diffs está vacío, inferir desde match_resultado
+      // Si match no es ok pero diffs vacío, inferir desde match_resultado
       if(!matchOk && diffs.length===0){
-        if(s.match==='cantidad_difiere'&&s.cantidad_rec===null) diffs.push('sin recepción registrada');
-        else if(s.match==='precio_difiere') diffs.push(`precio difiere`);
+        if(s.match==='cantidad_difiere' && s.cantidad_rec===null) diffs.push('sin recepción registrada');
+        else if(s.match==='precio_difiere') diffs.push('precio difiere');
         else if(s.match==='sku_no_encontrado_en_oc'||s.match==='sku_no_encontrado') diffs.push('SKU no encontrado en OC');
         else if(s.match) diffs.push(s.match.replace(/_/g,' '));
       }
 
-      const hasError=!matchOk||diffs.length>0||s.match==='sku_no_encontrado_en_oc'||s.match==='sku_no_encontrado';
-      const rc=!hasError?'sok':(cantRExcede||cantRNull||s.match?.includes('no_encontrado')?'ser':'swa');
+      const hasError = !matchOk || diffs.length>0 || s.match==='sku_no_encontrado_en_oc' || s.match==='sku_no_encontrado';
+      const esCritico = cantRExcede || cantRNull || s.match?.includes('no_encontrado');
+      const rc = !hasError ? 'sok' : esCritico ? 'ser' : 'swa';
 
       let rtHtml;
       if(!hasError){
@@ -948,7 +951,7 @@ async function showDet(id,e){
       } else if(s.match==='sku_no_encontrado_en_oc'||s.match==='sku_no_encontrado'){
         rtHtml=`<span class="ser">SKU no en OC</span>`;
       } else {
-        rtHtml=`<ul style="margin:0;padding-left:12px;list-style:disc">${diffs.map(d=>`<li style="color:${(cantRExcede||cantRNull)?'var(--err3)':'var(--warn3)'};font-size:10px;line-height:1.6">${d}</li>`).join('')}</ul>`;
+        rtHtml=`<ul style="margin:0;padding-left:12px;list-style:disc">${diffs.map(d=>`<li style="color:${esCritico?'var(--err3)':'var(--warn3)'};font-size:10px;line-height:1.6">${d}</li>`).join('')}</ul>`;
       }
 
       return`<tr style="vertical-align:top">
@@ -956,7 +959,7 @@ async function showDet(id,e){
         <td style="padding-top:9px">${s.descripcion||'—'}</td>
         <td class="${cantFDiff?'swa':''}" style="padding-top:9px">${s.cantidad_f??'—'}</td>
         <td style="padding-top:9px">${s.cantidad_oc??'—'}</td>
-        <td class="${cantRExcede?'ser':cantRNull?'ser':cantRDiff?'swa':''}" style="padding-top:9px">${s.cantidad_rec!=null?s.cantidad_rec:'—'}</td>
+        <td class="${cantRExcede||cantRNull?'ser':cantRMayor?'swa':cantRDiff?'swa':''}" style="padding-top:9px">${s.cantidad_rec!=null?s.cantidad_rec:'—'}</td>
         <td class="${precioDiff?'swa':''}" style="padding-top:9px">${s.precio_f!=null?fmt(s.precio_f):'—'}</td>
         <td style="padding-top:9px">${s.precio_oc!=null?fmt(s.precio_oc):'—'}</td>
         <td class="${rc}" style="padding-top:9px">${s.diff!=null?s.diff.toFixed(2)+'%':'—'}</td>
