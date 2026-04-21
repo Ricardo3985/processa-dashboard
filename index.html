@@ -243,6 +243,7 @@ table.sku td:last-child{white-space:normal;vertical-align:top}
           <input id="fil-prov" type="text" placeholder="Buscar proveedor..." oninput="applyF()">
           <input id="fil-oc" type="text" placeholder="N° OC..." oninput="applyF()" style="width:100px">
           <button class="btn-sm" onclick="loadF()">↺ Recargar</button>
+          <button class="btn-sm" onclick="exportCSV()" style="margin-left:4px">↓ Exportar CSV</button>
         </div>
         <div class="slabel">Facturas</div>
         <div class="tw">
@@ -731,7 +732,19 @@ async function showFDetalle(id,e){
   document.getElementById('dtitle').textContent='Detalle SKU · Factura '+f.numero_factura;
   document.getElementById('dprov').textContent=f.nombre_proveedor+' · '+f.oc_referencia;
   document.getElementById('dbadge').innerHTML=badgeH(f.estado);
-  document.getElementById('dpdf').style.display='none';
+  const pdfl=document.getElementById('dpdf');
+  if(f.storage_path){
+    const pdfUrl=`${SB}/storage/v1/object/public/facturas-pdf/${f.storage_path}`;
+    pdfl.href=pdfUrl;pdfl.style.display='inline-block';
+    // Mostrar iframe PDF
+    let pdfBox=document.getElementById('det-pdf-box');
+    if(!pdfBox){pdfBox=document.createElement('div');pdfBox.id='det-pdf-box';pdfBox.style.cssText='margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden;';document.getElementById('det-panel').querySelector('.detpanel').insertBefore(pdfBox,document.querySelector('.antsec'));}
+    pdfBox.innerHTML=`<iframe src="${pdfUrl}" style="width:100%;height:420px;border:none;display:block" title="Factura PDF"></iframe>`;
+    pdfBox.style.display='block';
+  } else {
+    pdfl.style.display='none';
+    const pdfBox=document.getElementById('det-pdf-box');if(pdfBox)pdfBox.style.display='none';
+  }
   // Reset analysis sections
   document.getElementById('af-num').textContent='—';document.getElementById('af-monto').textContent='—';
   document.getElementById('af-rut').textContent='—';document.getElementById('af-fecha').textContent='—';
@@ -1027,7 +1040,33 @@ function showToast(msg,type){
   t.style.cssText='display:block;background:'+(type==='ok'?'var(--ok2)':'var(--err2)')+';color:'+(type==='ok'?'var(--ok3)':'var(--err3)')+';border-color:'+(type==='ok'?'rgba(29,165,114,0.28)':'rgba(194,53,53,0.28)');
   t.textContent=msg;setTimeout(()=>t.style.display='none',4000);
 }
-function closeDet(){document.getElementById('det-panel').style.display='none';selF=null;renderFT();}
+function closeDet(){
+  document.getElementById('det-panel').style.display='none';
+  const pdfBox=document.getElementById('det-pdf-box');if(pdfBox)pdfBox.style.display='none';
+  selF=null;renderFT();
+}
+
+function exportCSV(){
+  const proc=filtF.filter(f=>!String(f.id).startsWith('r'));
+  if(!proc.length){alert('No hay facturas para exportar.');return;}
+  const cols=['N° Factura','Proveedor','RUT Proveedor','Monto Total','OC Referencia','Fecha Emisión','Estado','Confianza','Motivo'];
+  const rows=proc.map(f=>[
+    f.numero_factura||'',
+    f.nombre_proveedor||'',
+    f.rut_proveedor||'',
+    f.monto_total!=null?f.monto_total:'',
+    f.oc_referencia||'',
+    f.fecha_emision?new Date(f.fecha_emision).toLocaleDateString('es-CL'):'',
+    f.estado||'',
+    f.confianza!=null?(Number(f.confianza)*100).toFixed(1)+'%':'',
+    (f.motivo||'').replace(/;/g,' ')
+  ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';'));
+  const csv='\uFEFF'+[cols.join(';'),...rows].join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`processa_facturas_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
 
 // ── OC ──
 var MOC=[{numero_oc:'OC-006',nombre_proveedor:'Proveedor Test D',monto_total:1280000,estado:'abierta',fecha_emision:'2024-01-10'},{numero_oc:'OC-003',nombre_proveedor:'Proveedor Test C',monto_total:2831010,estado:'cerrada',fecha_emision:'2024-01-05'},{numero_oc:'OC-004',nombre_proveedor:'Proveedor Test D',monto_total:1050000,estado:'cerrada',fecha_emision:'2024-01-08'}];
