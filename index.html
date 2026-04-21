@@ -81,7 +81,7 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:var(--fon
 .ks{font-size:11px;color:var(--tx3);margin-top:4px}
 .slabel{font-size:10px;color:var(--tx3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;font-family:var(--mono)}
 .tw{border:1px solid var(--border2);border-radius:8px;overflow:hidden}
-table.t{width:100%;border-collapse:collapse;table-layout:auto;font-size:12px}
+table.t{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
 table.t thead th{background:var(--bg2);color:var(--tx3);font-size:10px;font-weight:400;padding:9px 12px;text-align:left;letter-spacing:.06em;border-bottom:1px solid var(--border2);font-family:var(--mono)}
 table.t tbody tr{border-bottom:1px solid var(--border2);transition:background .1s}
 table.t tbody tr:last-child{border-bottom:none}
@@ -242,10 +242,7 @@ table.sku td:last-child{white-space:normal;vertical-align:top}
           </select>
           <input id="fil-prov" type="text" placeholder="Buscar proveedor..." oninput="applyF()">
           <input id="fil-oc" type="text" placeholder="N° OC..." oninput="applyF()" style="width:100px">
-          <input id="fil-fecha-desde" type="date" oninput="applyF()" title="Desde" style="width:130px">
-          <input id="fil-fecha-hasta" type="date" oninput="applyF()" title="Hasta" style="width:130px">
           <button class="btn-sm" onclick="loadF()">↺ Recargar</button>
-          <button class="btn-sm" onclick="exportCSV()" style="color:var(--ok3);border-color:rgba(29,165,114,0.3)">↓ Exportar CSV</button>
         </div>
         <div class="slabel">Facturas</div>
         <div class="tw">
@@ -254,7 +251,7 @@ table.sku td:last-child{white-space:normal;vertical-align:top}
               <th style="width:105px">N° Factura</th><th style="width:145px">Proveedor</th>
               <th style="width:100px">Monto</th><th style="width:78px">OC Ref.</th>
               <th style="width:75px">Fecha</th><th style="width:100px">Estado</th>
-              <th style="width:60px">Conf.</th><th>Acciones</th>
+              <th style="width:60px">Conf.</th><th style="width:90px">Detalle</th><th>Acciones</th>
             </tr></thead>
             <tbody id="ftbody"><tr><td colspan="8" class="emp">Cargando...</td></tr></tbody>
           </table>
@@ -705,91 +702,8 @@ function renderKPIs(){
 
 function applyF(){
   const est=document.getElementById('fil-est').value,prov=document.getElementById('fil-prov').value.toLowerCase(),oc=document.getElementById('fil-oc').value.toLowerCase();
-  const desde=document.getElementById('fil-fecha-desde').value,hasta=document.getElementById('fil-fecha-hasta').value;
-  filtF=allF.filter(f=>{
-    if(est&&f.estado!==est)return false;
-    if(prov&&!(f.nombre_proveedor||'').toLowerCase().includes(prov))return false;
-    if(oc&&!(f.oc_referencia||'').toLowerCase().includes(oc))return false;
-    if(desde||hasta){
-      const fecha=f.fecha_emision?f.fecha_emision.slice(0,10):f.created_at?f.created_at.slice(0,10):null;
-      if(!fecha)return false;
-      if(desde&&fecha<desde)return false;
-      if(hasta&&fecha>hasta)return false;
-    }
-    return true;
-  });
+  filtF=allF.filter(f=>{if(est&&f.estado!==est)return false;if(prov&&!(f.nombre_proveedor||'').toLowerCase().includes(prov))return false;if(oc&&!(f.oc_referencia||'').toLowerCase().includes(oc))return false;return true;});
   renderFT();
-}
-
-function exportCSV(){
-  if(!filtF.length){alert('No hay facturas para exportar con los filtros actuales.');return;}
-
-  const cols=[
-    'N° Factura','Proveedor','RUT','Monto Factura','Monto OC','Dif. Monto %',
-    'OC Referencia','Fecha Emisión','Fecha Recepción','Estado','Confianza LLM','Motivo',
-    'SKU','Descripción SKU','Cant. Factura','Cant. OC','Cant. Recibida',
-    'Precio Unit. Factura','Precio Unit. OC','Resultado SKU'
-  ];
-
-  const rows=[];
-  const procesadas=filtF.filter(f=>!String(f.id).startsWith('r'));
-
-  for(const f of procesadas){
-    const lineas=Array.isArray(f.lineas)?f.lineas:(typeof f.lineas==='string'&&f.lineas?JSON.parse(f.lineas):[]);
-    const montoOC=f.monto_oc!=null?f.monto_oc:'';
-    const difPct=f.monto_total!=null&&f.monto_oc!=null&&f.monto_oc>0
-      ?(Math.abs(f.monto_total-f.monto_oc)/f.monto_oc*100).toFixed(2)+'%'
-      :'';
-    const cabecera=[
-      f.numero_factura||'',
-      f.nombre_proveedor||'',
-      f.rut_proveedor||'',
-      f.monto_total!=null?f.monto_total:'',
-      montoOC,
-      difPct,
-      f.oc_referencia||'',
-      f.fecha_emision?f.fecha_emision.slice(0,10):'',
-      f.fecha_recepcion?f.fecha_recepcion.slice(0,10):'',
-      f.estado||'',
-      f.confianza!=null?Math.round(Number(f.confianza)*100)+'%':'',
-      (f.motivo||'').replace(/,/g,';')
-    ];
-
-    if(lineas.length){
-      for(const l of lineas){
-        rows.push([
-          ...cabecera,
-          l.sku||'',
-          (l.descripcion||'').replace(/,/g,';'),
-          l.cantidad_factura??'',
-          l.cantidad_oc??'',
-          l.cantidad_recibida??'',
-          l.precio_unitario_factura??'',
-          l.precio_unitario_oc??'',
-          (l.match_resultado||'').replace(/_/g,' ')
-        ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
-      }
-    } else {
-      // Factura sin detalle SKU — una fila con columnas SKU vacías
-      rows.push([
-        ...cabecera,
-        '','','','','','','',''
-      ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
-    }
-  }
-
-  if(!rows.length){alert('No hay facturas procesadas para exportar.');return;}
-
-  const csv='\uFEFF'+[cols.join(','),...rows].join('\r\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  const desde=document.getElementById('fil-fecha-desde').value||'';
-  const hasta=document.getElementById('fil-fecha-hasta').value||'';
-  const rango=desde||hasta?`_${desde||'inicio'}_${hasta||'hoy'}`:'';
-  a.href=url;a.download=`reporte_invoice_matching${rango}.csv`;
-  document.body.appendChild(a);a.click();
-  document.body.removeChild(a);URL.revokeObjectURL(url);
 }
 
 function badgeH(st){const m={aprobada:['bok','Aprobada'],aprobada_con_comentario:['bapc','Aprobada ✎'],excepcion:['bex','Excepción'],rechazada:['brej','Rechazada'],pendiente:['bpend','Pendiente'],procesando:['bpend','Procesando']};const[c,t]=m[st]||['bpend',st];return`<span class="badge ${c}">${t}</span>`;}
@@ -801,11 +715,10 @@ function renderFT(){
     const c=Number(f.confianza||0),raw=String(f.id).startsWith('r');
     const confcell=raw?'—':`<div class="cbar"><div class="ctr"><div class="cfl" style="width:${Math.round(c*100)}%;background:${cc(c)}"></div></div><span style="font-size:11px;color:${cc(c)};font-family:var(--mono);min-width:26px">${Math.round(c*100)}%</span></div>`;
     const idStr=typeof f.id==='string'?`'${f.id}'`:f.id;
-    // Construir PDF URL desde storage_path o desde numero_factura como fallback
-    const pdfPath=f.storage_path||`2026-04/Factura_${f.numero_factura}.pdf`;
-    const pdfbtn=`<a class="btn-accion bav" href="${SB}/storage/v1/object/public/facturas-pdf/${pdfPath}" target="_blank">Ver PDF</a>`;
+    const pdfbtn=f.storage_path?`<a class="btn-accion bav" href="${SB}/storage/v1/object/public/facturas-pdf/${f.storage_path}" target="_blank">↗ PDF</a>`:'';
     const anlbtn=raw?'':` <button class="btn-accion bag" onclick="showDet(${idStr},event)">Ver análisis</button>`;
-    return`<tr class="${selF===f.id?'sel':''}"><td style="color:var(--blue2);font-family:var(--mono)">${f.numero_factura}</td><td>${f.nombre_proveedor}</td><td style="font-family:var(--mono)">${f.monto_total!=null?fmt(f.monto_total):'—'}</td><td style="color:var(--tx3);font-family:var(--mono)">${f.oc_referencia}</td><td style="color:var(--tx3)">${fmtD(f.fecha_emision)}</td><td>${badgeH(f.estado)}</td><td>${confcell}</td><td>${pdfbtn}${anlbtn}</td></tr>`;
+    const detbtn=raw?'—':`<button class="btn-accion" style="color:var(--tx2);border-color:var(--border2)" onclick="showFDetalle(${idStr},event)">Ver detalle</button>`;
+    return`<tr class="${selF===f.id?'sel':''}"><td style="color:var(--blue2);font-family:var(--mono)">${f.numero_factura}</td><td>${f.nombre_proveedor}</td><td style="font-family:var(--mono)">${f.monto_total!=null?fmt(f.monto_total):'—'}</td><td style="color:var(--tx3);font-family:var(--mono)">${f.oc_referencia}</td><td style="color:var(--tx3)">${fmtD(f.fecha_emision)}</td><td>${badgeH(f.estado)}</td><td>${confcell}</td><td>${detbtn}</td><td>${pdfbtn}${anlbtn}</td></tr>`;
   }).join('');
 }
 
@@ -1002,29 +915,40 @@ async function showDet(id,e){
     });
 
     sb.innerHTML=[...allSkus.values()].map(s=>{
-      const ok=s.match==='ok'||(!s.match&&s.cantidad_f===s.cantidad_oc&&s.precio_f===s.precio_oc);
       const cantFDiff=s.cantidad_f!==null&&s.cantidad_oc!==null&&s.cantidad_f!==s.cantidad_oc;
       const cantRExcede=s.cantidad_f!==null&&s.cantidad_rec!==null&&s.cantidad_f>s.cantidad_rec;
+      const cantRNull=s.cantidad_rec===null&&s.match!==null&&s.match!=='ok';
       const cantRDiff=s.cantidad_rec!==null&&s.cantidad_oc!==null&&s.cantidad_rec!==s.cantidad_oc;
       const precioDiff=s.precio_f!==null&&s.precio_oc!==null&&s.precio_f!==s.precio_oc;
+
+      // Usar match_resultado como fuente de verdad principal
+      const matchOk = s.match==='ok' || (!s.match && !cantFDiff && !precioDiff && !cantRExcede && s.cantidad_rec!==null);
 
       // Construir lista de diferencias individuales
       const diffs=[];
       if(precioDiff) diffs.push(`precio: ${fmt(s.precio_f)} vs OC ${fmt(s.precio_oc)}`);
-      if(cantFDiff)  diffs.push(`cant. factura: ${s.cantidad_f} vs OC ${s.cantidad_oc}`);
+      if(cantFDiff&&s.cantidad_oc!==null) diffs.push(`cant. factura: ${s.cantidad_f} vs OC ${s.cantidad_oc}`);
       if(cantRExcede) diffs.push(`⚠ facturado ${s.cantidad_f} supera recibido ${s.cantidad_rec}`);
+      if(cantRNull) diffs.push(`sin recepción registrada`);
 
-      const hasError=diffs.length>0||s.match==='sku_no_encontrado_en_oc'||s.match==='sku_no_encontrado';
-      const rc=!hasError?'sok':(cantRExcede||s.match?.includes('no_encontrado')?'ser':'swa');
+      // Si match no es ok pero diffs está vacío, inferir desde match_resultado
+      if(!matchOk && diffs.length===0){
+        if(s.match==='cantidad_difiere'&&s.cantidad_rec===null) diffs.push('sin recepción registrada');
+        else if(s.match==='precio_difiere') diffs.push(`precio difiere`);
+        else if(s.match==='sku_no_encontrado_en_oc'||s.match==='sku_no_encontrado') diffs.push('SKU no encontrado en OC');
+        else if(s.match) diffs.push(s.match.replace(/_/g,' '));
+      }
 
-      // Resultado: si hay diferencias, mostrar como bullets; si no, OK
+      const hasError=!matchOk||diffs.length>0||s.match==='sku_no_encontrado_en_oc'||s.match==='sku_no_encontrado';
+      const rc=!hasError?'sok':(cantRExcede||cantRNull||s.match?.includes('no_encontrado')?'ser':'swa');
+
       let rtHtml;
       if(!hasError){
         rtHtml=`<span class="sok">✓ OK</span>`;
       } else if(s.match==='sku_no_encontrado_en_oc'||s.match==='sku_no_encontrado'){
         rtHtml=`<span class="ser">SKU no en OC</span>`;
       } else {
-        rtHtml=`<ul style="margin:0;padding-left:12px;list-style:disc">${diffs.map(d=>`<li style="color:${cantRExcede?'var(--err3)':'var(--warn3)'};font-size:10px;line-height:1.6">${d}</li>`).join('')}</ul>`;
+        rtHtml=`<ul style="margin:0;padding-left:12px;list-style:disc">${diffs.map(d=>`<li style="color:${(cantRExcede||cantRNull)?'var(--err3)':'var(--warn3)'};font-size:10px;line-height:1.6">${d}</li>`).join('')}</ul>`;
       }
 
       return`<tr style="vertical-align:top">
@@ -1032,7 +956,7 @@ async function showDet(id,e){
         <td style="padding-top:9px">${s.descripcion||'—'}</td>
         <td class="${cantFDiff?'swa':''}" style="padding-top:9px">${s.cantidad_f??'—'}</td>
         <td style="padding-top:9px">${s.cantidad_oc??'—'}</td>
-        <td class="${cantRExcede?'ser':cantRDiff?'swa':''}" style="padding-top:9px">${s.cantidad_rec!=null?s.cantidad_rec:'—'}</td>
+        <td class="${cantRExcede?'ser':cantRNull?'ser':cantRDiff?'swa':''}" style="padding-top:9px">${s.cantidad_rec!=null?s.cantidad_rec:'—'}</td>
         <td class="${precioDiff?'swa':''}" style="padding-top:9px">${s.precio_f!=null?fmt(s.precio_f):'—'}</td>
         <td style="padding-top:9px">${s.precio_oc!=null?fmt(s.precio_oc):'—'}</td>
         <td class="${rc}" style="padding-top:9px">${s.diff!=null?s.diff.toFixed(2)+'%':'—'}</td>
